@@ -6,7 +6,7 @@
 RF24 radio(10, 9); // CE, CSN
 RF24Network network(radio);
 
-#define NODE_ID 5        // Уникальный ID узла от 1 до 5 для каждого устройства
+#define NODE_ID 1        // Уникальный ID узла от 1 до 5 для каждого устройства
 #define TARGET_NODE 5    // ID целевого узла, куда будут направляться сообщения
 #define SENDER 1
 
@@ -30,7 +30,7 @@ void setup() {
   radio.setPALevel(RF24_PA_LOW);
 
   // Настройки канала и скорости передачи
-  radio.setChannel(90);
+  radio.setChannel(76);
   radio.setDataRate(RF24_250KBPS);
 
   // Включаем режим прослушивания
@@ -46,17 +46,20 @@ void loop() {
 
   // Отправка сообщения с узла-отправителя
   if (NODE_ID == SENDER) {
-    radio.stopListening(); 
+    radio.stopListening();
+    delay(5);
 
     Payload payload = { NODE_ID, targetNode, "Hello from Node 1"};
     RF24NetworkHeader header(targetNode);
 
     if (network.write(header, &payload, sizeof(payload))) {
+      Serial.println("Сообщение отправлено");
       // Успешная отправка
       digitalWrite(ledPin, HIGH);
       delay(3000); // Светодиод горит 3 секунды
       digitalWrite(ledPin, LOW);
     } else {
+      Serial.println("Ошибка при отправке");
       // Ошибка при отправке
       for (int i = 0; i < 10; i++) {
         digitalWrite(ledPin, HIGH);
