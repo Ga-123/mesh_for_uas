@@ -6,8 +6,8 @@
 RF24 radio(10, 9); // CE, CSN
 RF24Network network(radio);
 
-#define NODE_ID 1  // Уникальный ID узла от 1 до 5 для каждого устройства
-#define TARGET_NODE 5 // ID целевого узла, куда будут направляться сообщения
+#define NODE_ID 5        // Уникальный ID узла от 1 до 5 для каждого устройства
+#define TARGET_NODE 5    // ID целевого узла, куда будут направляться сообщения
 #define SENDER 1
 
 const uint16_t targetNode = TARGET_NODE;
@@ -24,27 +24,30 @@ struct Payload {
 void setup() {
   pinMode(ledPin, OUTPUT);
   Serial.begin(9600);
-
+  delay(100);
   radio.begin();
-  network.begin(NODE_ID);
+  network.begin(NODE_ID);  // Установка сетевого уровня и ID узла
   radio.setPALevel(RF24_PA_LOW);
 
+  // Настройки канала и скорости передачи
   radio.setChannel(90);
   radio.setDataRate(RF24_250KBPS);
 
+  // Включаем режим прослушивания
   radio.startListening();
 
   Serial.print("Устройство с NODE_ID ");
   Serial.println(NODE_ID);
+  delay(2000);
 }
 
 void loop() {
-  network.update();
-  
-  // Отправка сообщения
+  network.update();   // Обновление сети, получение сообщений
+
+  // Отправка сообщения с узла-отправителя
   if (NODE_ID == SENDER) {
     radio.stopListening(); 
-    
+
     Payload payload = { NODE_ID, targetNode, "Hello from Node 1"};
     RF24NetworkHeader header(targetNode);
 
@@ -62,8 +65,10 @@ void loop() {
         delay(300);
       }
     }
+
+    // Возвращаемся в режим приема после отправки
     radio.startListening();
-    delay(5000); // Пауза перед повторной отправкой
+    delay(5000);  // Пауза перед повторной отправкой
   }
 
   // Прием сообщений
@@ -87,11 +92,11 @@ void loop() {
     } else {
       // Пересылка сообщения
       RF24NetworkHeader forwardHeader(payload.to);
-      radio.stopListening();
+      radio.stopListening();  // Отключаем прием для пересылки
       network.write(forwardHeader, &payload, sizeof(payload));
-      radio.startListening();
+      radio.startListening();  // Включаем прием обратно
     }
   }
 
-  delay(100);
+  delay(100);  // Задержка для стабилизации работы сети
 }
