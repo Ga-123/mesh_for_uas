@@ -4,13 +4,14 @@
 #include <SPI.h>
 
 
+//Настройка CE и CSN
 RF24 radio(10, 9);
 RF24Network network(radio);
 RF24Mesh mesh(radio, network);
 
-const int ledPin = 2;
+const int ledPin = 2;        // Пин для светодиода
 
-const uint8_t nodeID = 2; // change it to 2, 3, 4 or 5
+const uint8_t nodeID = 2;    // ID текущего узла (можно изменить на 2, 3, 4 или 5)
 
 struct payload_t {
   unsigned long ms;
@@ -20,41 +21,30 @@ struct payload_t {
 uint32_t displayTimer = 0;
 
 
-void setup() {
-  Serial.begin(115200);
-  while (!Serial) {}
-
-  pinMode(ledPin, OUTPUT);
-
-  mesh.setNodeID(nodeID);
-
-  radio.begin();
-  radio.setPALevel(RF24_PA_MIN);
-
-  Serial.println(F("Connecting to the mesh..."));
-  if (!mesh.begin()) {
-    if (radio.isChipConnected()) {
-      do {
-        Serial.println(F("Could not connect to network.\nConnecting to the mesh..."));
-      } while (mesh.renewAddress() == MESH_DEFAULT_ADDRESS);
-    } else {
-      Serial.println(F("Radio hardware not responding."));
-      while (1) {}
-    }
+// Функция обработки подключения при неудаче
+void handleConnectionFailure() {
+  if (radio.isChipConnected()) {  // Проверка наличия радиомодуля
+    do {
+      Serial.println(F("Could not connect to network.\nConnecting to the mesh..."));
+    } while (mesh.renewAddress() == MESH_DEFAULT_ADDRESS); // Пробуем обновить адрес
+  } else {
+    Serial.println(F("Radio hardware not responding."));
+    while (1) {} // Бесконечный цикл при отсутствии радиомодуля
   }
 }
 
-void loop() {
-  mesh.update();
-
+// Отправка сообщения по расписанию
+void sendScheduledMessage() {
   if (millis() - displayTimer >= 1000) {
     displayTimer = millis();
 
+    // Пытаемся отправить сообщение
     if (!mesh.write(&displayTimer, 'M', sizeof(displayTimer))) {
+      // Проверка подключения при неудаче отправки
       if (!mesh.checkConnection()) {
         Serial.println("Renewing Address");
         if (mesh.renewAddress() == MESH_DEFAULT_ADDRESS) {
-          mesh.begin();
+          mesh.begin(); // Переинициализация сети
         }
       } else {
         Serial.println("Send fail, Test OK");
@@ -64,12 +54,16 @@ void loop() {
       Serial.println(displayTimer);
     }
   }
+}
 
+// Обработка полученных сообщений
+void receiveMessages() {
   if (network.available()) {
     RF24NetworkHeader header;
     payload_t payload;
     network.read(header, &payload, sizeof(payload));
 
+    // Вывод информации о полученных данных
     Serial.print("Received packet #");
     Serial.print(payload.counter);
     Serial.print(" at ");
@@ -79,16 +73,47 @@ void loop() {
     delay(200);
     digitalWrite(ledPin, LOW);
 
-    for (int i = 0; i < mesh.addrListTop; i++) {
-      if (mesh.addrList[i].nodeID != 0 && mesh.addrList[i].nodeID != nodeID) {
-        RF24NetworkHeader newHeader(mesh.addrList[i].address, 'M');
-        network.write(newHeader, &payload, sizeof(payload));
+    // Перенаправляем сообщение другим узлам в сети
+    forwardMessage(payload);
+  }
+}
 
-        Serial.print("Forwarded packet #");
-        Serial.print(payload.counter);
-        Serial.print(" to node ");
-        Serial.println(mesh.addrList[i].nodeID);
-      }
+// Перенаправление полученного сообщения другим узлам
+void forwardMessage(const payload_t &payload) {
+  for (int i = 0; i < mesh.addrListTop; i++) {
+    if (mesh.addrList[i].nodeID != 0 && mesh.addrList[i].nodeID != nodeID) {
+      RF24NetworkHeader newHeader(mesh.addrList[i].address, 'M');
+      network.write(newHeader, &payload, sizeof(payload));
+
+      // Выводим информацию о пересылке
+      Serial.print("Forwarded packet #");
+      Serial.print(payload.counter);
+      Serial.print(" to node ");
+      Serial.println(mesh.addrList[i].nodeID);
     }
   }
+}
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) {}
+
+  pinMode(ledPin, OUTPUT);
+
+  mesh.setNodeID(nodeID);     // Устанавливаем ID узла
+
+  radio.begin();
+  radio.setPALevel(RF24_PA_MIN); // Устанавливаем минимальный уровень мощности для экономии энергии
+
+  Serial.println(F("Connecting to the mesh..."));
+  if (!mesh.begin()) {        // Инициализация сети
+    handleConnectionFailure(); // Если не удается подключиться, выполняем попытку восстановления
+  }
+}
+
+void loop() {
+  mesh.update();        // Обновляем состояние сети
+
+  sendScheduledMessage(); // Отправка сообщения по расписанию
+  receiveMessages();      // Обработка полученных сообщений
 }
