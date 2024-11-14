@@ -1,7 +1,6 @@
 #include "meshWrap.h"
 
 const int ledPin = 2;      // Пин для светодиода
-const uint8_t nodeID = 0;  // Уникальный ID главного узла
 
 void setup() {
   Serial.begin(115200);
