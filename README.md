@@ -45,23 +45,102 @@
   - Каждый узел отправляет тестовое сообщение раз в секунду, если в сети нет других активных сообщений.
  
 ### Функции кода
-1. **Отправка данных от главного узла (`sendMessages()`)**. Главный узел отправляет данные на все узлы сети, проверяя успешность передачи:
+1. **Отправка данных от главного узла (`sendMessages()`).** Главный узел отправляет данные на все узлы сети, проверяя успешность передачи:
    ```
-   bool success = network.write(header, &payload, sizeof(payload));
+   // Цикл для отправки данных на все узлы в сети, кроме самого себя
+   for (int i = 0; i < mesh.addrListTop; i++) {
+     if (mesh.addrList[i].nodeID != 0) {
+       RF24NetworkHeader header(mesh.addrList[i].address, 'M');
+       bool success = network.write(header, &payload, sizeof(payload));
+
+       digitalWrite(ledPin, success ? HIGH : LOW);
+        
+       Serial.println(success ? F("Send OK") : F("Send Fail"));
+     }
+   }
    ```
    Если передача успешна, светодиод на главном узле загорается на короткое время.
 
-2. **Перенаправление сообщений (`forwardMessage(const payload_t &payload)`).** Узлы 2-5 получают данные, и если сообщение не предназначено для них, перенаправляют его дальше по сети:
+2. **Обработка входящих сообщений в главном узле (`receiveMessages()`).** Функция помогает главному узлу получать и обрабатывать сообщения, поступающие от других узлов в сети, чтобы отслеживать активность и корректность передачи данных в сети.
    ```
-   network.write(newHeader, &payload, sizeof(payload));
+   if (network.available()) {
+     RF24NetworkHeader header;
+     payload_t payload;
+     network.read(header, &payload, sizeof(payload));
+
+     // Выводим информацию о полученных данных
+     Serial.print("Received from node ");
+     Serial.print(header.from_node);
+     Serial.print(": counter = ");
+     Serial.print(payload.counter);
+     Serial.print(", ms = ");
+     Serial.println(payload.ms);
+
+     delay(200);
+   }
    ```
 
-3. Сигнализация через светодиод:
+3. **Отправка сообщений от релейных узлов (`sendScheduledMessage()`).** Функция используется для того, чтобы релейные узлы периодически отправляли сообщения в сеть. Это позволяет проверять их активность и корректность подключения к сети, а также помогает поддерживать mesh-сеть активной, так как каждый узел участвует в обмене данными.
+   ```
+   // Пытаемся отправить сообщение
+   if (!mesh.write(&displayTimer, 'M', sizeof(displayTimer))) {
+     // Проверка подключения при неудаче отправки
+     if (!mesh.checkConnection()) {
+       Serial.println("Renewing Address");
+       if (mesh.renewAddress() == MESH_DEFAULT_ADDRESS) {
+         mesh.begin(); // Переинициализация сети
+       }
+     } else {
+       Serial.println("Send fail, Test OK");
+     }
+   } else {
+     Serial.print("Send OK: ");
+     Serial.println(displayTimer);
+   }
+   ```
+
+4. **Обработка входящих сообщений в релейных узлах (`receiveMessages()`).** Функция в релейных узлах отвечает за получение сообщений от других узлов в сети, обработку и сигнализацию о получении, а также за перенаправление сообщения другим узлам. Это помогает обеспечивать бесперебойную передачу данных между узлами и поддерживать mesh-сеть активной и связной.
+   ```
+   if (network.available()) {
+     RF24NetworkHeader header;
+     payload_t payload;
+     network.read(header, &payload, sizeof(payload));
+
+     // Вывод информации о полученных данных
+     Serial.print("Received packet #");
+     Serial.print(payload.counter);
+     Serial.print(" at ");
+     Serial.println(payload.ms);
+
+     digitalWrite(ledPin, HIGH);
+     delay(200);
+     digitalWrite(ledPin, LOW);
+
+     // Перенаправляем сообщение другим узлам в сети
+     forwardMessage(payload);
+   }
+   ```
+
+5. **Перенаправление сообщений (`forwardMessage(const payload_t &payload)`).** Функция обеспечивает надежную передачу данных по сети, распространяя полученные сообщения между узлами. Это помогает гарантировать, что данные достигнут узлов, которые находятся вне зоны прямой связи с передающим узлом, поддерживая связность и надежность mesh-сети.
+   ```
+   if (mesh.addrList[i].nodeID != 0 && mesh.addrList[i].nodeID != nodeID) {
+     RF24NetworkHeader newHeader(mesh.addrList[i].address, 'M');
+     network.write(newHeader, &payload, sizeof(payload));
+
+     // Выводим информацию о пересылке
+     Serial.print("Forwarded packet #");
+     Serial.print(payload.counter);
+     Serial.print(" to node ");
+     Serial.println(mesh.addrList[i].nodeID);
+   }
+   ```
+
+6. Сигнализация через светодиод:
    - При получении сообщения светодиод загорается на короткое время.
    - При успешной отправке светодиод загорается на 200 мс.
    - При неудачной отправке светодиод не загорается.
 
-4. Обработка подключения: В случае потери связи с сетью узлы 2-5 пытаются обновить адрес и повторно подключиться.
+7. Обработка подключения: В случае потери связи с сетью узлы 2-5 пытаются обновить адрес и повторно подключиться.
 
 ### Начало работы
 1. Настройка пинов и ID: В каждой программе необходимо правильно настроить CE и CSN для модуля NRF24L01, пин для светодиода, а также ID узла:
