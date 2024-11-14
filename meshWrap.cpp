@@ -7,7 +7,6 @@ RF24 radio(10, 9);
 RF24Network network(radio);
 RF24Mesh mesh(radio, network);
 
-const int retryDelay = 200;  // Задержка для повторной отправки сообщений
 static int ledPin;
 
 
@@ -76,18 +75,30 @@ void setupMesh(uint8_t nodeID, int pin) {
   ledPin = pin;
   pinMode(ledPin, OUTPUT);
 
-  mesh.setNodeID(nodeID);
+  mesh.setNodeID(nodeID);  // Уникальный ID релейного узла (для каждого устройства меняем ID)
   radio.begin();
   radio.setPALevel(RF24_PA_MIN);
 
   Serial.println(F("Connecting to the mesh..."));
-  if (!mesh.begin()) {          // Инициализация сети
+  if (!mesh.begin()) {
     handleConnectionFailure();  // Если не удается подключиться, выполняем попытку восстановления
   }
 }
 
 void updateMesh() {
   mesh.update();
+}
+
+// Функция обработки подключения при неудаче
+void handleConnectionFailure() {
+  if (radio.isChipConnected()) {  // Проверка наличия радиомодуля
+    do {
+      Serial.println(F("Could not connect to network.\nConnecting to the mesh..."));
+    } while (mesh.renewAddress() == MESH_DEFAULT_ADDRESS); // Пробуем обновить адрес
+  } else {
+    Serial.println(F("Radio hardware not responding."));
+    while (1) {} // Бесконечный цикл при отсутствии радиомодуля
+  }
 }
 
 // Отправка сообщения по расписанию
