@@ -8,7 +8,22 @@ RF24Network network(radio);
 RF24Mesh mesh(radio, network);
 
 static int ledPin;
+static unsigned long displayTimer = 0;
+static unsigned long ctr = 0;
+static uint8_t nodeID;
 
+
+// Функция обработки подключения при неудаче
+void handleConnectionFailure() {
+  if (radio.isChipConnected()) {  // Проверка наличия радиомодуля
+    do {
+      Serial.println(F("Could not connect to network.\nConnecting to the mesh..."));
+    } while (mesh.renewAddress() == MESH_DEFAULT_ADDRESS); // Пробуем обновить адрес
+  } else {
+    Serial.println(F("Radio hardware not responding."));
+    while (1) {} // Бесконечный цикл при отсутствии радиомодуля
+  }
+}
 
 void setupMeshMaster(int pin) {
   ledPin = pin;
@@ -87,18 +102,6 @@ void setupMesh(uint8_t nodeID, int pin) {
 
 void updateMesh() {
   mesh.update();
-}
-
-// Функция обработки подключения при неудаче
-void handleConnectionFailure() {
-  if (radio.isChipConnected()) {  // Проверка наличия радиомодуля
-    do {
-      Serial.println(F("Could not connect to network.\nConnecting to the mesh..."));
-    } while (mesh.renewAddress() == MESH_DEFAULT_ADDRESS); // Пробуем обновить адрес
-  } else {
-    Serial.println(F("Radio hardware not responding."));
-    while (1) {} // Бесконечный цикл при отсутствии радиомодуля
-  }
 }
 
 // Отправка сообщения по расписанию
