@@ -36,9 +36,7 @@ void receiveMessages() {
     Serial.print(", ms = ");
     Serial.println(payload.ms);
 
-    digitalWrite(ledPin, HIGH);
     delay(200);
-    digitalWrite(ledPin, LOW);
   }
 }
 
@@ -60,6 +58,7 @@ void sendMessages() {
       }
     }
     delay(200);
+    digitalWrite(ledPin, LOW);
     displayTimer = millis();
   }
 }
