@@ -13,12 +13,14 @@ struct payload_t {
 // Объявления функций
 void setupMeshMaster(int ledPin);
 void updateMeshMaster();
-void sendMessage();
+void sendMessages();
 void receiveMessagesMaster();
 
 void setupMesh(uint8_t nodeID, int ledPin);
 void updateMesh();
 void sendScheduledMessage();
 void receiveMessages();
+void handleConnectionFailure();
+void forwardMessage(const payload_t &payload);
 
 #endif // MESH_WRAP_H
