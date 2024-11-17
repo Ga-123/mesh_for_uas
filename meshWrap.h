@@ -13,13 +13,13 @@ struct payload_t {
 // Объявления функций
 void setupMeshMaster(int ledPin);
 void updateMeshMaster();
-void sendMessages();
-void receiveMessagesMaster();
+void sendMessages(payload_t &data_to_send);
+bool receiveMessagesMaster(RF24NetworkHeader &header, payload_t &payload);
 
 void setupMesh(uint8_t nodeID, int ledPin);
 void updateMesh();
-void sendScheduledMessage();
-void receiveMessages();
+void sendScheduledMessage(payload_t &data_to_send);
+bool receiveMessages(RF24NetworkHeader &header, payload_t &payload);
 void handleConnectionFailure();
 void forwardMessage(const payload_t &payload);
 
