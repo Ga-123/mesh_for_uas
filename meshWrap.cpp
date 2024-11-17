@@ -30,7 +30,6 @@ void setupMeshMaster(int pin) {
   pinMode(ledPin, OUTPUT);
 
   mesh.setNodeID(0);  // Устанавливаем ID узла (0 - главный узел)
-  Serial.println(mesh.getNodeID()); 
 
   if (!mesh.begin()) {
     Serial.println(F("Radio hardware not responding."));
@@ -44,30 +43,21 @@ void updateMeshMaster() {
 }
 
 // Обработка входящих сообщений
-void receiveMessagesMaster() {
+bool receiveMessagesMaster(RF24NetworkHeader &header, payload_t &payload) {
   if (network.available()) {
-    RF24NetworkHeader header;
-    payload_t payload;
+    // Чтение данных из сети
     network.read(header, &payload, sizeof(payload));
 
-    // Выводим информацию о полученных данных
-    Serial.print("Received from node ");
-    Serial.print(header.from_node);
-    Serial.print(": counter = ");
-    Serial.print(payload.counter);
-    Serial.print(", ms = ");
-    Serial.println(payload.ms);
-
-    delay(200);
+    return true; // Успешно получили сообщение
   }
+
+  return false; // Сообщений нет
 }
 
-// Отправка сообщений на все узлы в сети
-void sendMessages() {
-  if (millis() - displayTimer > 5000) {
-    ctr++;
-    payload_t payload = { millis(), ctr };
 
+// Отправка сообщений на все узлы в сети
+void sendMessages(payload_t &payload) {
+  if (millis() - displayTimer > 5000) {
     // Цикл для отправки данных на все узлы в сети, кроме самого себя
     for (int i = 0; i < mesh.addrListTop; i++) {
       if (mesh.addrList[i].nodeID != 0) {
@@ -105,12 +95,12 @@ void updateMesh() {
 }
 
 // Отправка сообщения по расписанию
-void sendScheduledMessage() {
+void sendScheduledMessage(payload_t &payload) {
   if (millis() - displayTimer >= 1000) {
     displayTimer = millis();
 
     // Пытаемся отправить сообщение
-    if (!mesh.write(&displayTimer, 'M', sizeof(displayTimer))) {
+    if (!mesh.write(&payload, 'M', sizeof(payload))) {
       // Проверка подключения при неудаче отправки
       if (!mesh.checkConnection()) {
         Serial.println("Renewing Address");
@@ -128,17 +118,9 @@ void sendScheduledMessage() {
 }
 
 // Обработка полученных сообщений
-void receiveMessages() {
+bool receiveMessages(RF24NetworkHeader &header, payload_t &payload) {
   if (network.available()) {
-    RF24NetworkHeader header;
-    payload_t payload;
     network.read(header, &payload, sizeof(payload));
-
-    // Вывод информации о полученных данных
-    Serial.print("Received packet #");
-    Serial.print(payload.counter);
-    Serial.print(" at ");
-    Serial.println(payload.ms);
 
     digitalWrite(ledPin, HIGH);
     delay(200);
@@ -146,7 +128,11 @@ void receiveMessages() {
 
     // Перенаправляем сообщение другим узлам в сети
     forwardMessage(payload);
+
+    return true; // Успешно получили сообщение
   }
+
+  return false; // Сообщений нет
 }
 
 // Перенаправление полученного сообщения другим узлам
